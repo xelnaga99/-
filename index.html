@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人生不能重來 RPG - 傳奇冒險系統 V6.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #020617; 
+            font-family: 'Noto Sans TC', sans-serif; 
+            color: #f8fafc;
+            user-select: none;
+        }
+        
+        canvas { display: block; cursor: crosshair; }
+
+        /* 標題畫面美化 */
+        #title-screen {
+            background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+            z-index: 1000;
+        }
+
+        .floating-icon {
+            position: absolute;
+            font-size: 3.5rem;
+            opacity: 0.15;
+            animation: float-slow 8s infinite ease-in-out;
+            pointer-events: none;
+        }
+
+        @keyframes float-slow {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-30px) rotate(15deg); }
+        }
+
+        .press-start {
+            animation: blink 1.5s infinite;
+            text-shadow: 0 0 15px #6366f1;
+        }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        /* 介面玻璃擬態 */
+        .glass-panel {
+            background: rgba(8, 10, 24, 0.98);
+            backdrop-filter: blur(35px);
+            border-right: 2px solid rgba(99, 102, 241, 0.4);
+            box-shadow: 20px 0 60px rgba(0,0,0,1);
+            z-index: 20;
+        }
+
+        .pixel-title-main {
+            font-size: 3.8rem;
+            font-weight: 950;
+            background: linear-gradient(to bottom, #fbbf24, #d97706);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6));
+            letter-spacing: -2px;
+            font-style: italic;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 10px; }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(-12px, 12px); }
+            60% { transform: translate(12px, -12px); }
+        }
+        .shake-effect { animation: shake 0.2s ease-in-out 3; }
+
+        .rank-badge {
+            display: inline-block;
+            white-space: nowrap; 
+            padding: 4px 14px;
+            font-size: 11px;
+            font-weight: 900;
+            border-radius: 6px;
+            text-transform: uppercase;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .rank-bronze { background: linear-gradient(135deg, #78350f, #451a03); color: #fde68a; }
+        .rank-silver { background: linear-gradient(135deg, #475569, #1e293b); color: #f1f5f9; }
+        .rank-gold { background: linear-gradient(135deg, #b45309, #92400e); color: #fff; box-shadow: 0 0 15px #fbbf24; border-color: #fbbf24; }
+        .rank-legendary { background: linear-gradient(135deg, #be123c, #4c0519); color: #fecdd3; animation: glow-pulse 1s infinite alternate; border-color: #f43f5e; }
+
+        @keyframes glow-pulse { from { box-shadow: 0 0 5px #f43f5e; } to { box-shadow: 0 0 20px #f43f5e; } }
+    </style>
+</head>
+<body>
+
+    <!-- 遊戲進版畫面 -->
+    <div id="title-screen" class="fixed inset-0 flex flex-col items-center justify-center transition-opacity duration-1000">
+        <div class="floating-icon" style="top: 15%; left: 10%; animation-delay: 0s;">⚔️</div>
+        <div class="floating-icon" style="top: 20%; right: 15%; animation-delay: 1s;">🔮</div>
+        <div class="floating-icon" style="bottom: 25%; left: 20%; animation-delay: 2s;">💎</div>
+        <div class="floating-icon" style="bottom: 15%; right: 10%; animation-delay: 3s;">👑</div>
+        
+        <h1 class="pixel-title-main mb-4">人生不能重來 RPG</h1>
+        <p class="text-indigo-400 font-bold tracking-[0.6em] mb-14 uppercase opacity-80">Legendary Adventure Engine</p>
+        
+        <button onclick="startGame()" class="start-btn group px-24 py-10 rounded-[2.5rem] relative overflow-hidden transition-all hover:scale-110">
+            <span class="relative z-10 text-4xl font-black text-white press-start">PRESS START</span>
+            <div class="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity"></div>
+        </button>
+        
+        <p class="mt-20 text-slate-500 font-mono text-xs tracking-widest">VER 6.2 ETERNAL BACKUP • SYNTH AUDIO</p>
+    </div>
+
+    <!-- UI 介面層 -->
+    <div id="ui-layer" class="hidden fixed inset-0 z-10 pointer-events-none flex">
+        <div id="sidebar" class="w-80 h-full glass-panel pointer-events-auto flex flex-col p-6 shadow-2xl">
+            <header class="mb-10">
+                <h2 class="text-indigo-400 font-black text-2xl italic tracking-tighter flex items-center gap-3">
+                    <span class="text-3xl filter drop-shadow-md">🛡️</span> HEROES GUILD
+                </h2>
+                <div class="h-1.5 w-24 bg-gradient-to-r from-indigo-500 to-transparent mt-2 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"></div>
+            </header>
+
+            <div class="space-y-6 mb-8">
+                <div>
+                    <label class="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] ml-1">戰區地圖控制</label>
+                    <div class="flex gap-2 mt-2">
+                        <select id="classSelector" onchange="switchClass(this.value)" class="flex-grow bg-slate-950 border-2 border-slate-800 text-white rounded-2xl p-3.5 text-sm focus:outline-none focus:border-indigo-500 transition-all shadow-inner">
+                        </select>
+                        <button onclick="promptAddClass()" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-2xl text-white font-bold shadow-lg transition-all active:scale-90">＋</button>
+                    </div>
+                </div>
+
+                <button onclick="editClassList()" class="w-full bg-slate-800/40 hover:bg-indigo-900/50 py-4.5 text-xs font-black border-2 border-slate-800 rounded-3xl flex items-center justify-center gap-3 transition-all hover:border-indigo-500 shadow-xl">
+                    👥 召喚英雄名單
+                </button>
+                
+                <input type="text" id="studentSearch" oninput="renderStudentList()" placeholder="搜尋姓名、稱號..." 
+                    class="w-full bg-slate-950 border-2 border-slate-800 rounded-2xl px-6 py-4 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all shadow-inner">
+            </div>
+
+            <div class="flex-grow overflow-y-auto custom-scrollbar pr-1 space-y-4" id="studentListUI">
+                <!-- 英雄卡片會動態生成 -->
+            </div>
+
+            <footer class="mt-6 pt-6 border-t border-slate-800 flex gap-3">
+                <button onclick="exportData()" class="flex-grow bg-emerald-700 hover:bg-emerald-600 py-4 text-xs font-black rounded-2xl transition-all shadow-xl active:scale-95">匯出戰報</button>
+                <button onclick="confirmDeleteClass()" class="bg-rose-950/80 hover:bg-rose-800 px-6 py-4 text-xs font-black rounded-2xl border border-rose-900 transition-colors">🗑️</button>
+            </footer>
+        </div>
+
+        <div id="level-up-overlay" class="flex-grow flex items-center justify-center pointer-events-none">
+            <div id="notice-box" class="opacity-0 scale-50 translate-y-20 transition-all duration-700 bg-slate-900/98 border-t-8 border-b-8 border-yellow-500 px-24 py-16 text-center shadow-[0_0_300px_rgba(234,179,8,0.6)] rounded-[5rem]">
+                <h3 class="text-yellow-400 text-9xl font-black italic mb-4 tracking-tighter">EVOLUTION!</h3>
+                <p id="notice-text" class="text-4xl text-white font-black tracking-[0.4em] uppercase"></p>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- 全域彈窗控制 -->
+    <div id="modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-3xl p-4">
+        <div class="bg-slate-900 w-full max-w-lg p-12 border-2 border-slate-700 rounded-[4rem] shadow-2xl">
+            <h3 id="modalTitle" class="text-3xl font-black text-indigo-400 mb-4 italic tracking-tight"></h3>
+            <p id="modalText" class="text-slate-400 text-sm mb-8 leading-relaxed font-bold"></p>
+            <div id="modalInputArea" class="hidden mb-8">
+                <input type="text" id="modalInput" class="w-full bg-slate-950 border-2 border-slate-800 rounded-2xl px-7 py-5 text-white outline-none focus:border-indigo-500 shadow-inner">
+            </div>
+            <div id="modalTextareaArea" class="hidden mb-8">
+                <textarea id="modalTextarea" rows="12" class="w-full bg-slate-950 border-2 border-slate-800 rounded-3xl px-7 py-5 text-sm text-white outline-none focus:border-indigo-500 custom-scrollbar" placeholder="請輸入英雄姓名，一行一位..."></textarea>
+            </div>
+            <div class="flex justify-end gap-6">
+                <button onclick="closeModal()" class="px-10 py-4 text-sm font-bold text-slate-500 hover:text-white transition-colors">CANCEL</button>
+                <button id="modalConfirmBtn" class="px-16 py-4 bg-indigo-600 rounded-3xl text-sm font-black text-white shadow-2xl hover:bg-indigo-500 transition-all active:scale-95">CONFIRM EXECUTION</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, query, onSnapshot, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 音效引擎 (Web Audio API 合成) ---
+        const SoundFX = {
+            ctx: null,
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            play(freq, type, duration, vol = 0.1) {
+                this.init(); const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(this.ctx.currentTime + duration);
+            },
+            click() { this.play(850, 'sine', 0.12, 0.06); },
+            coin() { this.play(1100, 'triangle', 0.2, 0.06); setTimeout(() => this.play(1400, 'triangle', 0.2, 0.06), 60); },
+            levelUp() { this.play(600, 'square', 0.3, 0.04); setTimeout(() => this.play(900, 'square', 0.4, 0.04), 120); },
+            evolve() { [440, 554, 659, 880, 1108].forEach((f, i) => setTimeout(() => this.play(f, 'sawtooth', 0.7, 0.025), i * 180)); }
+        };
+
+        // --- 3D 浮空文字 ---
+        class FloatingText {
+            constructor(text, pos, color) {
+                const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+                const ctx = canvas.getContext('2d'); ctx.font = "bold 90px 'Noto Sans TC'";
+                ctx.fillStyle = color; ctx.textAlign = "center"; ctx.shadowColor = "black"; ctx.shadowBlur = 20; ctx.fillText(text, 256, 90);
+                this.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true }));
+                this.sprite.position.copy(pos).y += 10; this.sprite.scale.set(15, 3.75, 1);
+                this.life = 1.0; scene.add(this.sprite);
+            }
+            update() { this.sprite.position.y += 0.18; this.life -= 0.015; this.sprite.material.opacity = this.life; return this.life > 0; }
+            destroy() { scene.remove(this.sprite); this.sprite.material.map.dispose(); this.sprite.material.dispose(); }
+        }
+
+        // --- 全域變數 ---
+        let scene, camera, renderer, raycaster, mouse;
+        let starField, charMeshes = {}, labelSprites = {}, particles = [], floatingTexts = [];
+        let students = [], currentClass = "冒險組 A", availableClasses = ["冒險組 A"];
+        let user = null, db, auth, unsubscribe = null;
+        let localDataStore = { "冒險組 A": [] }; 
+
+        const firebaseConfig = (function() { try { return JSON.parse(__firebase_config); } catch(e) { return null; } })();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hero-rpg-v6-2';
+        const isLocal = !firebaseConfig;
+
+        // --- 持久化函式 ---
+        function saveToLocalStorage() {
+            localStorage.setItem('hero_rpg_backup', JSON.stringify(localDataStore));
+        }
+
+        function loadFromLocalStorage() {
+            const backup = localStorage.getItem('hero_rpg_backup');
+            if (backup) {
+                localDataStore = JSON.parse(backup);
+                // 恢復可用班級名單
+                availableClasses = Object.keys(localDataStore);
+                if (availableClasses.length === 0) availableClasses = ["冒險組 A"];
+            }
+        }
+
+        // --- 根據姓名固定職業的簡單 Hash ---
+        const getStableRole = (name) => {
+            const roles = ['warrior', 'mage', 'assassin'];
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) hash += name.charCodeAt(i);
+            return roles[hash % 3];
+        };
+
+        const ROLES = {
+            warrior: { name: '戰士', color: '#ef4444', ranks: [{ min: 1, title: '初級劍士', badge: 'rank-bronze' }, { min: 5, title: '皇家騎士', badge: 'rank-silver' }, { min: 10, title: '傳說劍聖', badge: 'rank-gold' }, { min: 20, title: '屠龍勇者', badge: 'rank-legendary' }] },
+            mage: { name: '法師', color: '#8b5cf6', ranks: [{ min: 1, title: '魔法學徒', badge: 'rank-bronze' }, { min: 5, title: '元素領主', badge: 'rank-silver' }, { min: 10, title: '大賢者', badge: 'rank-gold' }, { min: 20, title: '至尊大法師', badge: 'rank-legendary' }] },
+            assassin: { name: '刺客', color: '#10b981', ranks: [{ min: 1, title: '影之追隨', badge: 'rank-bronze' }, { min: 5, title: '暗影刺客', badge: 'rank-silver' }, { min: 10, title: '幻影大師', badge: 'rank-gold' }, { min: 20, title: '虛空行者', badge: 'rank-legendary' }] }
+        };
+
+        const getRank = (role, lv) => {
+            const r = ROLES[role] || ROLES.warrior;
+            return [...r.ranks].reverse().find(x => lv >= x.min) || r.ranks[0];
+        };
+
+        // --- 華麗角色渲染引擎 ---
+        const createCharTexture = (role, level, gender, studentId) => {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d'); const cx = 256; const roleData = ROLES[role] || ROLES.warrior;
+            const hairHash = (studentId || "abc").split("").reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0);
+            const hairStyle = Math.abs(hairHash) % 4;
+
+            if (level >= 10) {
+                const g = ctx.createRadialGradient(cx, 220, 20, cx, 220, 280);
+                g.addColorStop(0, roleData.color + '88'); if (level >= 20) g.addColorStop(0.5, '#fbbf2477'); g.addColorStop(1, 'transparent');
+                ctx.fillStyle = g; ctx.fillRect(0,0,512,512);
+            }
+
+            if (level >= 5) {
+                ctx.fillStyle = level >= 15 ? '#1e1b4b' : (role === 'assassin' ? '#064e3b' : '#4c0519');
+                ctx.beginPath(); ctx.moveTo(cx-135, 285); ctx.lineTo(cx+135, 285); ctx.lineTo(cx+190, 512); ctx.lineTo(cx-190, 512); ctx.closePath(); ctx.fill();
+            }
+
+            ctx.save();
+            const wCol = level >= 20 ? '#fbbf24' : (level >= 10 ? '#f1f5f9' : (level >= 5 ? '#cbd5e1' : '#78350f'));
+            ctx.fillStyle = wCol; ctx.strokeStyle = '#000'; ctx.lineWidth = 3.5;
+            if (role === 'warrior') {
+                ctx.translate(cx + 130, 330); ctx.rotate(Math.PI / 10);
+                const ww = 22 + (level * 1.2); const wh = 190 + (level * 4.5);
+                ctx.beginPath(); ctx.moveTo(-ww/2, 0); ctx.lineTo(ww/2, 0); ctx.lineTo(0, -wh); ctx.closePath(); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = '#451a03'; ctx.fillRect(-ww, 0, ww*2, 18);
+            } else if (role === 'mage') {
+                ctx.translate(cx - 150, 330); 
+                ctx.fillStyle = '#451a03'; ctx.fillRect(-10, 0, 20, -280);
+                ctx.fillStyle = level >= 10 ? '#6366f1' : '#f43f5e';
+                ctx.beginPath(); ctx.arc(0, -290, 45 + (level * 0.9), 0, Math.PI*2); ctx.fill();
+                if(level >= 10) { ctx.strokeStyle = '#fff'; ctx.stroke(); }
+            } else {
+                ctx.translate(cx + 125, 415); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(28, -130); ctx.lineTo(-28, -130); ctx.closePath(); ctx.fill(); ctx.stroke();
+                if(level >= 10) { ctx.restore(); ctx.save(); ctx.fillStyle = wCol; ctx.strokeStyle = '#000'; ctx.translate(cx - 125, 415); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(28, -130); ctx.lineTo(-28, -130); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+            }
+            ctx.restore();
+
+            const armC = level < 10 ? roleData.color : '#fbbf24';
+            const bG = ctx.createLinearGradient(cx - 120, 300, cx + 120, 300);
+            bG.addColorStop(0, armC); bG.addColorStop(0.5, '#fffB'); bG.addColorStop(1, armC);
+            ctx.fillStyle = bG; ctx.beginPath(); ctx.moveTo(cx-120, 512); ctx.lineTo(cx+120, 512); ctx.lineTo(cx+115, 250); ctx.lineTo(cx-115, 250); ctx.closePath(); ctx.fill();
+            
+            if (level >= 5) {
+                ctx.fillStyle = level >= 15 ? '#fff' : '#334155';
+                ctx.beginPath(); ctx.arc(cx - 120, 275, 52, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 120, 275, 52, 0, Math.PI*2); ctx.fill();
+            }
+
+            ctx.fillStyle = '#ffdbac'; ctx.beginPath(); ctx.arc(cx, 195, 105, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = level >= 20 ? '#6366f1' : '#111827';
+            ctx.beginPath(); ctx.arc(cx - 45, 190, 15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx + 45, 190, 15, 0, Math.PI * 2); ctx.fill();
+            
+            const hCol = gender === 'male' ? '#1e293b' : '#e11d48';
+            ctx.fillStyle = hCol;
+            if (hairStyle === 0) {
+                ctx.beginPath(); ctx.arc(cx, 140, 115, Math.PI, 0); ctx.fill();
+                for(let i=0; i<8; i++) { ctx.beginPath(); ctx.moveTo(cx-120+(i*34), 140); ctx.lineTo(cx-140+(i*34), 50); ctx.lineTo(cx-100+(i*34), 140); ctx.fill(); }
+            } else if (hairStyle === 1) {
+                ctx.beginPath(); ctx.arc(cx, 140, 120, Math.PI, 0); ctx.fill(); ctx.fillRect(cx-120, 140, 60, 210); ctx.fillRect(cx+60, 140, 60, 210);
+            } else if (hairStyle === 2) {
+                ctx.beginPath(); ctx.ellipse(cx, 130, 85, 150, 0, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.beginPath(); ctx.arc(cx, 140, 120, Math.PI, 0); ctx.fill(); ctx.fillRect(cx-120, 140, 240, 100); ctx.clearRect(cx-35, 140, 70, 70);
+            }
+            return new THREE.CanvasTexture(canvas);
+        };
+
+        window.startGame = () => {
+            SoundFX.init(); SoundFX.click();
+            document.getElementById('title-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('title-screen').remove();
+                document.getElementById('ui-layer').classList.remove('hidden');
+                init3D();
+                if (isLocal) initLocalData(); else initFirebase();
+                animate();
+            }, 1000);
+        };
+
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            camera.position.set(0, 0, 140);
+            raycaster = new THREE.Raycaster(); mouse = new THREE.Vector2();
+            
+            const starGeo = new THREE.BufferGeometry(); const starPos = [];
+            for(let i=0; i<9000; i++) starPos.push((Math.random()-0.5)*6000, (Math.random()-0.5)*5000, (Math.random()-0.5)*6000);
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+            starField = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0x6366f1, size: 1.8, transparent: true, opacity: 0.7 }));
+            scene.add(starField);
+            scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('click', onSceneClick);
+        }
+
+        async function initFirebase() {
+            const app = initializeApp(firebaseConfig); auth = getAuth(app); db = getFirestore(app);
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token); else await signInAnonymously(auth);
+            onAuthStateChanged(auth, (u) => { user = u; if (user) loadGuildConfig(); });
+        }
+
+        async function loadGuildConfig() {
+            const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global'));
+            if (snap.exists() && snap.data().classes) {
+                availableClasses = snap.data().classes;
+                availableClasses.forEach(c => { if(!localDataStore[c]) localDataStore[c] = []; });
+            }
+            updateClassSelector(); switchClass(currentClass);
+        }
+
+        function initLocalData() {
+            // 從 LocalStorage 載入資料
+            loadFromLocalStorage();
+            updateClassSelector(); 
+            switchClass(currentClass);
+        }
+
+        function updateClassSelector() {
+            document.getElementById('classSelector').innerHTML = availableClasses.map(c => `<option value="${c}" ${c===currentClass?'selected':''}>${c}</option>`).join('');
+        }
+
+        window.switchClass = (className) => {
+            currentClass = className;
+            students = []; renderStudentList();
+            Object.keys(charMeshes).forEach(id => { scene.remove(charMeshes[id]); scene.remove(labelSprites[id]); });
+            charMeshes = {}; labelSprites = {};
+            if (isLocal) { 
+                students = [...(localDataStore[className] || [])];
+                renderStudentList(); sync3D(); return; 
+            }
+            if (unsubscribe) unsubscribe();
+            unsubscribe = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'students_' + className), (snap) => {
+                const newData = []; snap.forEach(d => newData.push({ id: d.id, ...d.data() }));
+                if (currentClass === className) {
+                    students = newData.sort((a,b) => (a.order || 0) - (b.order || 0));
+                    renderStudentList(); sync3D();
+                }
+            });
+        };
+
+        window.renderStudentList = () => {
+            const search = document.getElementById('studentSearch').value.toLowerCase();
+            const container = document.getElementById('studentListUI'); container.innerHTML = '';
+            
+            students.filter(s => s.name.toLowerCase().includes(search)).forEach(s => {
+                const rank = getRank(s.role, s.level); const progress = ((s.points || 0) % 5) / 5 * 100;
+                const div = document.createElement('div');
+                div.className = "mb-4 bg-slate-900/90 border-2 border-slate-800 p-6 rounded-[2.2rem] hover:border-indigo-500 transition-all group pointer-events-auto shadow-2xl";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-4 flex-grow overflow-hidden">
+                            <span class="text-3xl filter drop-shadow-xl flex-shrink-0">${s.gender==='male'?'👤':'👩'}</span>
+                            <div class="flex flex-col overflow-hidden">
+                                <h4 class="text-base font-black text-white tracking-tight truncate">${s.name}</h4>
+                                <div class="mt-1">
+                                    <span class="rank-badge ${rank.badge}">${rank.title}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex gap-2.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                            <button onclick="changePoints('${s.id}', -1)" class="w-10 h-10 bg-slate-800 hover:bg-slate-700 rounded-xl text-lg font-bold border-2 border-slate-700 shadow-lg">-</button>
+                            <button onclick="changePoints('${s.id}', 1)" class="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-lg font-bold border-2 border-indigo-400 shadow-[0_0_15px_#6366f1]">+</button>
+                        </div>
+                    </div>
+                    <div class="w-full h-4 bg-slate-950 rounded-full overflow-hidden mb-3 shadow-inner border border-slate-800">
+                        <div class="h-full bg-gradient-to-r from-indigo-600 via-indigo-400 to-cyan-400 transition-all duration-1000 shadow-[0_0_12px_#6366f1]" style="width: ${progress}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center px-2">
+                        <div class="text-[13px] font-black text-cyan-400 tracking-widest drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">XP: <span class="text-white text-sm ml-1">${s.points || 0}</span></div>
+                        <div class="text-[13px] font-black text-indigo-300 uppercase tracking-widest">LV: <span class="text-white text-sm ml-1">${s.level || 1}</span></div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        };
+
+        window.changePoints = async (id, delta) => {
+            const idx = students.findIndex(x => x.id === id);
+            if (idx === -1) return;
+            const originalPoints = students[idx].points || 0;
+            const originalLevel = students[idx].level || 1;
+            const newPts = Math.max(0, originalPoints + delta);
+            const newLv = Math.floor(newPts / 5) + 1;
+            
+            students[idx].points = newPts;
+            students[idx].level = newLv;
+            renderStudentList(); sync3D(); 
+            
+            if (delta > 0) {
+                SoundFX.coin(); spawnParticles(id, 15);
+                if (newLv > originalLevel) triggerLevelUp(students[idx], originalLevel, newLv);
+            } else SoundFX.click();
+
+            try {
+                if (isLocal) {
+                    localDataStore[currentClass] = [...students];
+                    saveToLocalStorage(); // 儲存備份
+                } else {
+                    if (!user) return;
+                    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'students_' + currentClass, id);
+                    await updateDoc(ref, { points: newPts, level: newLv });
+                }
+            } catch (error) {
+                students[idx].points = originalPoints;
+                students[idx].level = originalLevel;
+                renderStudentList(); sync3D();
+                window.showModal("同步錯誤", "連線不穩定，數據已恢復到上個狀態。", () => {}, 'none');
+            }
+        };
+
+        function triggerLevelUp(s, oldLv, newLv) {
+            const sprite = charMeshes[s.id]; if (!sprite) return;
+            const oldR = getRank(s.role, oldLv); const newR = getRank(s.role, newLv);
+            if (newR.title !== oldR.title) {
+                SoundFX.evolve();
+                const box = document.getElementById('notice-box'); document.getElementById('notice-text').innerText = `${s.name} 晉升為 ${newR.title}！`;
+                box.classList.remove('opacity-0', 'scale-50', 'translate-y-20'); document.body.classList.add('shake-effect');
+                setTimeout(() => { box.classList.add('opacity-0', 'scale-50', 'translate-y-20'); document.body.classList.remove('shake-effect'); }, 4500);
+            } else {
+                SoundFX.levelUp();
+                floatingTexts.push(new FloatingText("LEVEL UP!", sprite.position, "#34d399"));
+            }
+        }
+
+        function sync3D() {
+            if (!scene || students.length === 0) return;
+            const ids = students.map(s => s.id);
+            Object.keys(charMeshes).forEach(id => { if (!ids.includes(id)) { scene.remove(charMeshes[id]); scene.remove(labelSprites[id]); delete charMeshes[id]; delete labelSprites[id]; } });
+            const cols = 5; const gap = 45;
+            const sidebarW = document.getElementById('sidebar').offsetWidth || 320;
+            const screenW = window.innerWidth;
+            const availableW = screenW - sidebarW; 
+            const actCols = Math.min(students.length, cols);
+            const actRows = Math.ceil(students.length / cols);
+            const groupW = (actCols - 1) * gap;
+            const groupH = (actRows - 1) * gap * 1.5;
+            const fovRad = camera.fov * Math.PI / 360;
+            const visRatio = availableW / screenW;
+            const reqZ_W = (groupW / visRatio) / (2 * Math.tan(fovRad) * camera.aspect);
+            const reqZ_H = groupH / (2 * Math.tan(fovRad));
+            const targetZ = Math.max(180, reqZ_W * 1.7, reqZ_H * 1.7); 
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetZ, 0.05);
+            const totalWWorld = 2 * Math.tan(fovRad) * camera.position.z * camera.aspect;
+            const offsetX = (sidebarW / screenW) * totalWWorld * 0.58; 
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, -offsetX, 0.05);
+
+            students.forEach((s, i) => {
+                const curRow = Math.floor(i / cols);
+                const rowL = (curRow === actRows - 1) ? (students.length % cols || cols) : cols;
+                const x = (i % cols - (rowL - 1) / 2) * gap; 
+                const y = -curRow * gap * 1.5;
+                const lv = s.level || 1; const scale = 22 + (lv * 0.35);
+                if (!charMeshes[s.id]) {
+                    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: createCharTexture(s.role, lv, s.gender, s.id), transparent: true }));
+                    sp.position.set(x, y, 0); sp.scale.set(scale, scale, 1); sp.userData = { id: s.id, lastLv: lv };
+                    charMeshes[s.id] = sp; scene.add(sp);
+                    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: createLabelTexture(s), transparent: true }));
+                    label.scale.set(24, 12, 1); labelSprites[s.id] = label; scene.add(label);
+                } else {
+                    const sp = charMeshes[s.id]; if (sp.userData.lastLv !== lv) { sp.material.map = createCharTexture(s.role, lv, s.gender, s.id); sp.userData.lastLv = lv; }
+                    sp.position.lerp(new THREE.Vector3(x, y, 0), 0.1); sp.scale.lerp(new THREE.Vector3(scale, scale, 1), 0.1);
+                    labelSprites[s.id].position.set(x, y + scale/2 + 7, 1); labelSprites[s.id].material.map = createLabelTexture(s);
+                }
+            });
+        }
+
+        function createLabelTexture(s) {
+            const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 200;
+            const ctx = canvas.getContext('2d'); const rank = getRank(s.role, s.level);
+            ctx.fillStyle = 'rgba(10, 15, 30, 0.98)'; ctx.roundRect(0, 0, 400, 180, 45); ctx.fill();
+            ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.font = 'bold 58px Noto Sans TC'; ctx.fillText(s.name, 200, 85);
+            ctx.fillStyle = rank.badge === 'rank-gold' || rank.badge === 'rank-legendary' ? '#fbbf24' : '#6366f1';
+            ctx.font = 'bold 34px Noto Sans TC'; ctx.fillText(rank.title + ` (LV.${s.level})`, 200, 145);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function spawnParticles(id, count) {
+            const sprite = charMeshes[id]; if (!sprite) return;
+            for(let i=0; i<count; i++){
+                const p = new THREE.Sprite(new THREE.SpriteMaterial({ map: (function(){ const c = document.createElement('canvas'); c.width=64; c.height=64; const t = c.getContext('2d'); t.fillStyle='#fbbf24'; t.beginPath(); t.arc(32,32,24,0,Math.PI*2); t.fill(); return new THREE.CanvasTexture(c); })(), transparent: true }));
+                p.position.copy(sprite.position); p.scale.set(1.5, 1.5, 1);
+                p.userData = { vx: (Math.random()-0.5)*2.5, vy: Math.random()*2.5 + 1.2, life: 1.0 };
+                particles.push(p); scene.add(p);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate); const t = Date.now() * 0.002;
+            if (starField) { starField.rotation.y += 0.0008; starField.rotation.x += 0.00025; }
+            Object.values(charMeshes).forEach(m => {
+                m.position.y += Math.sin(t + m.position.x) * 0.08;
+                m.rotation.z = Math.sin(t * 0.5 + m.position.x) * 0.05; // 輕微晃動
+            });
+            for(let i=particles.length-1; i>=0; i--){
+                particles[i].position.x += particles[i].userData.vx; particles[i].position.y += particles[i].userData.vy;
+                particles[i].userData.life -= 0.025; particles[i].material.opacity = particles[i].userData.life;
+                if(particles[i].userData.life <= 0){ scene.remove(particles[i]); particles.splice(i, 1); }
+            }
+            for(let i=floatingTexts.length-1; i>=0; i--) if(!floatingTexts[i].update()){ floatingTexts[i].destroy(); floatingTexts.splice(i, 1); }
+            renderer.render(scene, camera);
+        }
+
+        function onSceneClick(e) {
+            if (e.target.tagName !== 'CANVAS') return;
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const ints = raycaster.intersectObjects(Object.values(charMeshes));
+            if (ints.length > 0) changePoints(ints[0].object.userData.id, 1);
+        }
+
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); sync3D(); }
+
+        window.showModal = (title, text, confirmFn, type = 'input') => {
+            SoundFX.click();
+            document.getElementById('modalTitle').innerText = title; document.getElementById('modalText').innerText = text;
+            document.getElementById('modalInputArea').classList.toggle('hidden', type !== 'input');
+            document.getElementById('modalTextareaArea').classList.toggle('hidden', type !== 'textarea');
+            document.getElementById('modalConfirmBtn').onclick = () => { SoundFX.click(); confirmFn(type === 'input' ? document.getElementById('modalInput').value : document.getElementById('modalTextarea').value); closeModal(); };
+            document.getElementById('modal').classList.remove('hidden');
+        };
+        window.closeModal = () => document.getElementById('modal').classList.add('hidden');
+
+        window.promptAddClass = () => {
+            window.showModal("探索新戰區", "請輸入新據點的神秘代號：", async (name) => {
+                if (name && !availableClasses.includes(name)) {
+                    availableClasses.push(name); localDataStore[name] = []; 
+                    if (!isLocal && user) await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global'), { classes: availableClasses }, { merge: true });
+                    saveToLocalStorage(); updateClassSelector(); switchClass(name);
+                }
+            });
+        };
+
+        window.editClassList = () => {
+            const target = currentClass;
+            window.showModal(`英雄召喚儀式 (${target})`, "每行輸入英雄姓名：", async (text) => {
+                const names = text.split('\n').map(n => n.trim()).filter(n => n !== '');
+                const cleanNames = [...new Set(names)];
+                if (isLocal) { 
+                    const list = cleanNames.map((n, i) => ({ id: 'l_'+Date.now()+i, name: n, role: getStableRole(n), points: 0, level: 1, gender: i%2?'male':'female', order: i })); 
+                    localDataStore[target] = list; 
+                    saveToLocalStorage();
+                    if(currentClass === target) { students = list; renderStudentList(); sync3D(); }
+                } else {
+                    for (let n of cleanNames) {
+                        const id = n.replace(/\s+/g, '_'); const ref = doc(db, 'artifacts', appId, 'public', 'data', 'students_' + target, id);
+                        if (!(await getDoc(ref)).exists()) await setDoc(ref, { name: n, points: 0, level: 1, role: getStableRole(n), gender: Math.random()>0.5?'male':'female', order: Date.now() });
+                    }
+                }
+            }, 'textarea');
+            document.getElementById('modalTextarea').value = students.map(s => s.name).join('\n');
+        };
+
+        window.confirmDeleteClass = () => {
+            window.showModal("摧毀據點文明", `確認要解散「${currentClass}」？所有歷史將化為塵埃。`, async () => {
+                delete localDataStore[currentClass];
+                availableClasses = availableClasses.filter(c => c !== currentClass);
+                saveToLocalStorage();
+                if (!isLocal && user) { for(let s of students) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'students_' + currentClass, s.id)); await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'config', 'global'), { classes: availableClasses }); }
+                if (availableClasses.length === 0) { availableClasses = ["冒險組 A"]; localDataStore["冒險組 A"] = []; }
+                switchClass(availableClasses[0]); updateClassSelector();
+            }, 'none');
+        };
+
+        window.exportData = () => { const csv = "\uFEFF據點,姓名,職位,等級,經驗\n" + students.map(s => `${currentClass},${s.name},${getRank(s.role, s.level).title},${s.level},${s.points}`).join('\n'); const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); link.download = `RPG_Report_${currentClass}.csv`; link.click(); };
+        window.onload = () => { document.oncontextmenu = (e) => e.preventDefault(); };
+    </script>
+</body>
+</html>
